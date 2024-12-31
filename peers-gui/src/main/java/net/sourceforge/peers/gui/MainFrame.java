@@ -25,20 +25,10 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
+import java.util.HashMap;
+import java.util.Map;
 
-import javax.swing.BorderFactory;
-import javax.swing.BoxLayout;
-import javax.swing.JButton;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JMenu;
-import javax.swing.JMenuBar;
-import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JTextField;
-import javax.swing.SwingUtilities;
-import javax.swing.UIManager;
+import javax.swing.*;
 import javax.swing.border.Border;
 
 import net.sourceforge.peers.FileLogger;
@@ -74,6 +64,15 @@ public class MainFrame implements WindowListener, ActionListener {
     private EventManager eventManager;
     private Registration registration;
     private Logger logger;
+
+    private JPanel headersPanel;
+    private JTextField headerKeyField;
+    private JTextField headerValueField;
+    private JButton addHeaderButton;
+    private JPanel addedHeadersPanel;  // 用于显示已添加的 headers
+    private JTextArea headersTextArea; // 可选，用于文本格式输入
+    private Map<String, String> headersMap = new HashMap<>(); // 存储 SIP headers
+
 
     public MainFrame(final String[] args) {
         String peersHome = Utils.DEFAULT_PEERS_HOME;
@@ -122,6 +121,8 @@ public class MainFrame implements WindowListener, ActionListener {
         mainPanel.add(dialerPanel);
         mainPanel.add(statusLabel);
 
+        addHeadersUi();
+
         Container contentPane = mainFrame.getContentPane();
         contentPane.add(mainPanel);
 
@@ -135,6 +136,7 @@ public class MainFrame implements WindowListener, ActionListener {
         registration = new Registration(statusLabel, logger);
 
         Thread thread = new Thread(new Runnable() {
+            @Override
             public void run() {
                 String peersHome = Utils.DEFAULT_PEERS_HOME;
                 if (args.length > 0) {
@@ -142,7 +144,7 @@ public class MainFrame implements WindowListener, ActionListener {
                 }
                 eventManager = new EventManager(MainFrame.this,
                         peersHome, logger, soundManager);
-                    eventManager.register();
+                eventManager.register();
             }
         }, "gui-event-manager");
         thread.start();
@@ -192,6 +194,86 @@ public class MainFrame implements WindowListener, ActionListener {
         mainFrame.setVisible(true);
     }
 
+    private void addHeadersUi() {
+        headersPanel = new JPanel();
+        headersPanel.setLayout(new BoxLayout(headersPanel, BoxLayout.Y_AXIS));
+
+        // SIP Header key/value 输入框
+        headerKeyField = new JTextField(15);
+        headerValueField = new JTextField(15);
+        addHeaderButton = new JButton("Add Header");
+
+        // 设置输入框的固定高度
+        headerKeyField.setPreferredSize(new java.awt.Dimension(150, 30));
+        headerValueField.setPreferredSize(new java.awt.Dimension(150, 30));
+
+        addHeaderButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                String key = headerKeyField.getText().trim();
+                String value = headerValueField.getText().trim();
+                if (!key.isEmpty() && !value.isEmpty()) {
+                    headersMap.put(key, value); // 将 SIP header 加入 Map
+                    headerKeyField.setText("");  // 清空输入框
+                    headerValueField.setText(""); // 清空输入框
+                    updateAddedHeadersUI(); // 更新UI
+                }
+            }
+        });
+
+        // 用于显示已添加的 headers
+        addedHeadersPanel = new JPanel();
+        addedHeadersPanel.setLayout(new BoxLayout(addedHeadersPanel, BoxLayout.Y_AXIS));
+
+        // SIP Header 文本框（可选）
+        headersTextArea = new JTextArea(5, 20);  // 你可以根据需要调整大小
+        headersTextArea.setLineWrap(true);
+        headersTextArea.setWrapStyleWord(true);
+
+        // 将组件加入到面板
+        //headersPanel.add(new JLabel("SIP Header Key:"));
+        //headersPanel.add(headerKeyField);
+        //headersPanel.add(new JLabel("SIP Header Value:"));
+        //headersPanel.add(headerValueField);
+        //headersPanel.add(addHeaderButton);
+        //headersPanel.add(new JLabel("Or enter headers in text format:"));
+        //headersPanel.add(new JScrollPane(addedHeadersPanel));
+        headersPanel.add(new JScrollPane(headersTextArea));
+
+        // 将 headersPanel 加入到主面板
+        mainPanel.add(headersPanel);
+    }
+
+    // 更新已添加的Headers UI
+    private void updateAddedHeadersUI() {
+        addedHeadersPanel.removeAll(); // 清空当前显示
+
+        for (Map.Entry<String, String> entry : headersMap.entrySet()) {
+            JPanel headerPanel = new JPanel();
+            headerPanel.setLayout(new BoxLayout(headerPanel, BoxLayout.X_AXIS));
+
+            // 显示key和value
+            headerPanel.add(new JLabel(entry.getKey() + ": " + entry.getValue()));
+
+            // 删除按钮
+            JButton deleteButton = new JButton("Delete");
+            deleteButton.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    headersMap.remove(entry.getKey()); // 从Map中删除该header
+                    updateAddedHeadersUI(); // 更新UI
+                }
+            });
+            headerPanel.add(deleteButton);
+
+            addedHeadersPanel.add(headerPanel);
+        }
+
+        // 刷新UI
+        addedHeadersPanel.revalidate();
+        addedHeadersPanel.repaint();
+    }
+
     // window events
 
     @Override
@@ -227,7 +309,32 @@ public class MainFrame implements WindowListener, ActionListener {
 
     @Override
     public void actionPerformed(ActionEvent e) {
-        eventManager.callClicked(uri.getText());
+        headersMap.clear();
+        // 获取 URI
+        String uriText = uri.getText();
+
+        // 处理文本框格式输入（如果用户输入了文本格式）
+        String textHeaders = headersTextArea.getText().trim();
+        if (!textHeaders.isEmpty()) {
+            parseTextHeaders(textHeaders);
+        }
+
+        // 将 headersMap 传递给 callClicked 方法
+        eventManager.callClicked(uriText, headersMap);
+    }
+
+    private void parseTextHeaders(String textHeaders) {
+        // 按行分割输入的文本
+        String[] lines = textHeaders.split("\n");
+        for (String line : lines) {
+            line = line.trim();
+            if (line.contains(":")) {
+                String[] keyValue = line.split(":", 2);
+                String key = keyValue[0].trim();
+                String value = keyValue[1].trim();
+                headersMap.put(key, value); // 更新 Map
+            }
+        }
     }
 
     // misc.
@@ -250,7 +357,7 @@ public class MainFrame implements WindowListener, ActionListener {
 
     public void socketExceptionOnStartup() {
         JOptionPane.showMessageDialog(mainFrame, "peers SIP port " +
-        		"unavailable, exiting");
+                "unavailable, exiting");
         System.exit(1);
     }
 

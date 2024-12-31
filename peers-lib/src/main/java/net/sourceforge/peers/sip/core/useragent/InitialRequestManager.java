@@ -27,13 +27,7 @@ import net.sourceforge.peers.sip.core.useragent.handlers.CancelHandler;
 import net.sourceforge.peers.sip.core.useragent.handlers.InviteHandler;
 import net.sourceforge.peers.sip.core.useragent.handlers.OptionsHandler;
 import net.sourceforge.peers.sip.core.useragent.handlers.RegisterHandler;
-import net.sourceforge.peers.sip.syntaxencoding.NameAddress;
-import net.sourceforge.peers.sip.syntaxencoding.SipHeaderFieldName;
-import net.sourceforge.peers.sip.syntaxencoding.SipHeaderFieldValue;
-import net.sourceforge.peers.sip.syntaxencoding.SipHeaderParamName;
-import net.sourceforge.peers.sip.syntaxencoding.SipHeaders;
-import net.sourceforge.peers.sip.syntaxencoding.SipURI;
-import net.sourceforge.peers.sip.syntaxencoding.SipUriSyntaxException;
+import net.sourceforge.peers.sip.syntaxencoding.*;
 import net.sourceforge.peers.sip.transaction.ClientTransaction;
 import net.sourceforge.peers.sip.transaction.ServerTransaction;
 import net.sourceforge.peers.sip.transaction.ServerTransactionUser;
@@ -42,6 +36,8 @@ import net.sourceforge.peers.sip.transactionuser.DialogManager;
 import net.sourceforge.peers.sip.transport.SipRequest;
 import net.sourceforge.peers.sip.transport.SipResponse;
 import net.sourceforge.peers.sip.transport.TransportManager;
+
+import java.util.Map;
 
 public class InitialRequestManager extends RequestManager
         implements ServerTransactionUser {
@@ -152,6 +148,18 @@ public class InitialRequestManager extends RequestManager
         return createInitialRequest(requestUri, method, profileUri, callId,
                 null, null);
     }
+
+    private void addCustomerHeader(SipRequest sipRequest, Map<String, String> headers) {
+        if (sipRequest == null || sipRequest.getSipHeaders() == null || headers == null || headers.isEmpty()) {
+            return;
+        }
+        SipHeaders sipHeaders = sipRequest.getSipHeaders();
+        for (String key : headers.keySet()) {
+            SipHeaderFieldName sipHeaderFieldName = new SipHeaderFieldName(key);
+            SipHeaderFieldValue sipHeaderFieldValue = new SipHeaderFieldValue(headers.get(key));
+            sipHeaders.add(sipHeaderFieldName, sipHeaderFieldValue);
+        }
+    }
     
     public SipRequest createInitialRequest(String requestUri, String method,
             String profileUri, String callId, String fromTag,
@@ -160,7 +168,9 @@ public class InitialRequestManager extends RequestManager
         
         SipRequest sipRequest = getGenericRequest(requestUri, method,
                 profileUri, callId, fromTag);
-        
+
+        // 添加自定义header
+        addCustomerHeader(sipRequest, SipHeaderContext.getSipHeader());
         // TODO add route header for outbound proxy give it to xxxHandler to create
         // clientTransaction
         SipURI outboundProxy = userAgent.getOutboundProxy();

@@ -20,9 +20,11 @@
 package net.sourceforge.peers.gui;
 
 
+import java.util.Map;
+
 public interface MainFrameListener {
 
-    public void callClicked(String callee);
+    public void callClicked(String callee, Map<String, String> headers);
     public void windowClosed();
     public void register();
 

@@ -40,10 +40,7 @@ import net.sourceforge.peers.sip.RFC3261;
 import net.sourceforge.peers.sip.Utils;
 import net.sourceforge.peers.sip.core.useragent.SipListener;
 import net.sourceforge.peers.sip.core.useragent.UserAgent;
-import net.sourceforge.peers.sip.syntaxencoding.SipHeaderFieldName;
-import net.sourceforge.peers.sip.syntaxencoding.SipHeaderFieldValue;
-import net.sourceforge.peers.sip.syntaxencoding.SipHeaders;
-import net.sourceforge.peers.sip.syntaxencoding.SipUriSyntaxException;
+import net.sourceforge.peers.sip.syntaxencoding.*;
 import net.sourceforge.peers.sip.transactionuser.Dialog;
 import net.sourceforge.peers.sip.transactionuser.DialogManager;
 import net.sourceforge.peers.sip.transport.SipMessage;
@@ -257,7 +254,7 @@ public class EventManager implements SipListener, MainFrameListener,
     }
 
     @Override
-    public void callClicked(final String uri) {
+    public void callClicked(final String uri, Map<String, String> headers) {
         SwingUtilities.invokeLater(new Runnable() {
             
             @Override
@@ -269,11 +266,14 @@ public class EventManager implements SipListener, MainFrameListener,
                 callFrames.put(callId, callFrame);
                 SipRequest sipRequest;
                 try {
+                    SipHeaderContext.setSipHeader(headers);
                     sipRequest = userAgent.invite(uri, callId);
                 } catch (SipUriSyntaxException e) {
                     logger.error(e.getMessage(), e);
                     mainFrame.setLabelText(e.getMessage());
                     return;
+                }finally {
+                    SipHeaderContext.clearSipHeader();
                 }
                 callFrame.setSipRequest(sipRequest);
                 callFrame.callClicked();
@@ -357,6 +357,7 @@ public class EventManager implements SipListener, MainFrameListener,
         return callFrames.get(callId);
     }
 
+    @Override
     public void actionPerformed(ActionEvent e) {
         String action = e.getActionCommand();
         logger.debug("gui actionPerformed() " + action);
